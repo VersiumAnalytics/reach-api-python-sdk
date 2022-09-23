@@ -1,4 +1,4 @@
-from .append import query_api, REACH_APIS
+from .append import query_api
 
 
 class ReachClient:

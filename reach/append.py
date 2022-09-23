@@ -3,8 +3,7 @@ import logging
 import time
 import urllib
 from collections import namedtuple
-import typing
-from aiohttp import ClientSession
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,7 @@ class RateLimiter(object):
     def __call__(self, func):
 
         async def wrapper(*args, **kwargs):
-            # Semaphore will block more than {self.n_connections} from happening at once.
+            # Semaphore will block more than {self.max_connections} from happening at once.
             self.last_reset = self.clock()
             async with self.sem:
                 for i in range(self.n_retry + 1):
@@ -77,7 +76,7 @@ class RateLimiter(object):
                     except QueryError:
                         if self.n_retry - i > 0:
                             await asyncio.sleep(self.retry_wait_time * i)
-                # Failed to perform the query after n_retry attempts. Return empty response
+                # Failed to perform the query after n_retry attempts. Return empty responses
                 return QueryResult(None, False, False)
 
         return wrapper
@@ -92,7 +91,7 @@ class RateLimiter(object):
         return max(period_remaining, 0)
 
 
-async def _fetch(session, record, query_params, url, headers, attempts_left):
+async def _fetch(session, record, query_params, api, headers, attempts_left):
     """Internal fetch method."""
     if query_params is None:
         query_params = {}
@@ -102,15 +101,15 @@ async def _fetch(session, record, query_params, url, headers, attempts_left):
     params = {**query_params, **row_dict}
     response = None
     try:
-        async with session.post(url, params=params, headers=headers) as response:
+        async with session.post(api, params=params, headers=headers) as response:
             response.raise_for_status()  # raise error if bad http status
-            body = await response.json(content_type=None)  # get json representation of response
+            body = await response.json(content_type=None)  # get json representation of responses
+
             if "errors" in body["versium"]:
                 raise QueryError(f"Received error response from REACH API: {body['versium']['errors']}")
+
             elif body["versium"].get("results", []):
-                result = QueryResult(body,
-                                     success=True,
-                                     match=True)
+                result = QueryResult(body, success=True, match=True)
 
             else:
                 logger.debug(f"API call successful but there were no matches for record at index (starting from 0) {idx}")
@@ -118,15 +117,15 @@ async def _fetch(session, record, query_params, url, headers, attempts_left):
 
             return result
 
-    except Exception as e:
+    except aiohttp.ClientError as e:
         status = getattr(response, "status", "UNKNOWN")
-        logger.error(f"Error during url fetch: {e}\n\tIndex: {idx}\n\tURL: {url}?{urllib.parse.urlencode(params)}"
+        logger.error(f"Error during api fetch: {e}\n\tIndex: {idx}\n\tURL: {session.make_url(api)}?{urllib.parse.urlencode(params)}"
                      f"\n\tResponse Status: {status}\n\tAttempts Left: {attempts_left:d}")
         # Use a different error class so that we only catch errors from making the http request
-        raise QueryError("Failed to fetch url.")
+        raise QueryError("Failed to fetch api.")
 
 
-async def _create_tasks(url, records, query_params, headers=None, *,  queries_per_second=20, n_connections=100, timeout=20, n_retry=3,
+async def _create_tasks(api, records, query_params, headers=None, *, queries_per_second=20, n_connections=100, timeout=20, n_retry=3,
                         retry_wait_time=3):
     tasks = []
     limit = RateLimiter(max_calls=queries_per_second,
@@ -136,32 +135,30 @@ async def _create_tasks(url, records, query_params, headers=None, *,  queries_pe
                         retry_wait_time=retry_wait_time)
     limited_fetch = limit(_fetch)
 
-    async with ClientSession(read_timeout=timeout) as session:
+    async with aiohttp.ClientSession(base_url=API_BASE_URL, read_timeout=timeout) as session:
         for rec in records:
             task = asyncio.ensure_future(
-                limited_fetch(session=session, record=rec, query_params=query_params, url=url, headers=headers))
+                limited_fetch(session=session, record=rec, query_params=query_params, api=api, headers=headers))
             tasks.append(task)
         responses = asyncio.gather(*tasks)
         return await responses
 
 
-def query_api(api_name, records, query_params, headers=None, *, n_retry=3, queries_per_second=20, n_connections=3, retry_wait_time=3,
+def query_api(api, records, query_params, headers=None, *, n_retry=3, queries_per_second=20, n_connections=3, retry_wait_time=3,
               timeout=3):
-    api = None
+
     # Check that appropriate api name was passed
     for valid_api in REACH_APIS:
-        if api_name.lower().strip() == valid_api.lower().strip():
+        if api.lower().strip() == valid_api.lower().strip():
             api = valid_api
 
     if api is None:
-        raise ValueError(f"Got `api_name` {api_name}. Valid api names are: {REACH_APIS}")
-
-    url = API_BASE_URL + api
+        raise ValueError(f"Got `api` {api}. Valid api names are: {REACH_APIS}")
 
     records = [QueryRecord(rec, i) for i, rec in enumerate(records)]
     logger.info(f'Started querying {len(records)} records')
     loop = asyncio.get_event_loop()
-    future = asyncio.ensure_future(_create_tasks(url=url,
+    future = asyncio.ensure_future(_create_tasks(api=api,
                                                  records=records,
                                                  query_params=query_params,
                                                  headers=headers,
