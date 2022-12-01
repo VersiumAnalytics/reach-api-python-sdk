@@ -1,7 +1,7 @@
 import logging
 from unittest.mock import patch
 
-from aiohttp.test_utils import AioHTTPTestCase
+from aiohttp.test_utils import AioHTTPTestCase, TestServer, Application
 
 from reach import append
 from tests.utils import make_app, RequestHandler, RateChecker
@@ -16,6 +16,11 @@ class TestAppend(AioHTTPTestCase):
         self.rate_checker = RateChecker(max_calls=5, max_connections=5, min_calls=5, min_connections=5, period=1)
         self.request_handler = RequestHandler(self.rate_checker, response_time=1.5)
         return make_app(self.request_handler)
+
+    async def get_server(self, app: Application) -> TestServer:
+        """Return a TestServer instance."""
+        test_server = TestServer(app, loop=self.loop, skip_url_asserts=False)
+        return test_server
 
     async def setUpAsync(self):
         await super().setUpAsync()

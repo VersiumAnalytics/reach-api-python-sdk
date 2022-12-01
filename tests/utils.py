@@ -33,16 +33,21 @@ class RateChecker:
         ----------
         max_calls : int
             Maximum number of function calls allowed within a time period.
+
         max_connections : int
             Maximum number of total active function calls to allow.
+
         min_calls : int
             Minimum number of calls per period required. When `raise_if_error` is called, an error is thrown if the highest number of calls
             per period is less than `min_calls` - `min_calls_tol`
+
         min_connections : int
             Minimum number of connections required. When `raise_if_error` is called, an error is thrown if the highest number of connections
             is less than `min_connections`
+
         period : float
             Length of time period in seconds.
+
         min_calls_tol : float
             Tolerance allowed for `min_calls` criteria before an error is thrown.
         """
@@ -151,13 +156,13 @@ def make_app(rh: RequestHandler):
 
     app = web.Application(logger=logger)
     app.router.add_routes(
-        [web.post('/test_rate_limit', rh.test_ratelimit),
-         web.post('/contact', partial(rh.handle_request, 'contact')),
-         web.post('/demographic', partial(rh.handle_request, 'demographic')),
-         web.post('/b2cOnlineAudience', partial(rh.handle_request, 'b2cOnlineAudience')),
-         web.post('/b2bOnlineAudience', partial(rh.handle_request, 'b2bOnlineAudience')),
-         web.post('/firmographic', partial(rh.handle_request, 'firmographic')),
-         web.post('/c2b', partial(rh.handle_request, 'c2b')),
-         web.post('/iptodomain', partial(rh.handle_request, 'iptodomain')),
-         web.post('/hemtobusinessdomain', partial(rh.handle_request, 'hemtobusinessdomain'))])
+        [web.post('/v2/test_rate_limit', rh.test_ratelimit),
+         web.post('/v2/contact', partial(rh.handle_request, 'contact')),
+         web.post('/v2/demographic', partial(rh.handle_request, 'demographic')),
+         web.post('/v2/b2cOnlineAudience', partial(rh.handle_request, 'b2cOnlineAudience')),
+         web.post('/v2/b2bOnlineAudience', partial(rh.handle_request, 'b2bOnlineAudience')),
+         web.post('/v2/firmographic', partial(rh.handle_request, 'firmographic')),
+         web.post('/v2/c2b', partial(rh.handle_request, 'c2b')),
+         web.post('/v2/iptodomain', partial(rh.handle_request, 'iptodomain')),
+         web.post('/v2/hemtobusinessdomain', partial(rh.handle_request, 'hemtobusinessdomain'))])
     return app

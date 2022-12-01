@@ -43,7 +43,7 @@ MOCK_RESPONSES = {
         "input_query": {
             "first": "John",
             "last": "Doe",
-            "address": "123 America Ln",
+            "address": "123 Main St",
             "city": "New York",
             "state": "NY",
             "zip": "10001"
@@ -65,7 +65,7 @@ MOCK_RESPONSES = {
                 "Individual Level Match": "Yes",
                 "First Name": "John",
                 "Last Name": "Doe",
-                "Postal Address": "123 America Ln Apt 405",
+                "Postal Address": "123 Main St Apt 405",
                 "City": "New York",
                 "State": "NY",
                 "Zip": "10001",
