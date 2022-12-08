@@ -48,7 +48,7 @@ def setup_package():
     cmdclass = {'clean': CleanCommand}
 
     setup(
-            name='reach',
+            name='versium-reach-sdk',
             version='1.0.0',
             description='Python SDK for querying Versium Reach APIs',
             long_description=long_description,
@@ -56,7 +56,9 @@ def setup_package():
             author='Versium Analytics, Inc.',
             author_email='opensource@versium.com',
             classifiers=[
-                'Programming Language :: Python :: 3.7',
+                "Programming Language :: Python :: 3",
+                "License :: OSI Approved :: BSD License",
+                "Operating System :: OS Independent",
             ],
             python_requires='~=3.7',
             zip_safe=False,
