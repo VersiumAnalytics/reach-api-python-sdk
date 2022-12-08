@@ -4,8 +4,13 @@ A simplified Python interface for appending data using [Versium Reach APIs](http
 ## Installation
 It's recommended that you first create a virtual Python environment before installing using tools such as virtualenv or 
 conda. This is to prevent you from installing the package directly onto your system's base Python installation. Once
-you have created and activated your virtual environment, proceed with the steps below.
+you have created and activated your virtual environment, proceed with one of the steps below.
 
+## PyPI
+```bash
+pip install versium-reach-sdk
+```
+## Install from Source
 1) Clone or download the codebase from the [GitHub Page](https://github.com/VersiumAnalytics/reach-api-python-sdk)
 2) CD into the newly downloaded or cloned folder
 ```bash
