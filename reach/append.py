@@ -14,12 +14,33 @@ API_BASE_URL = "https://api.versium.com"
 API_VERSION = "/v2/"
 
 
-async def _fetch(session, record, query_params, path, headers, attempts_left):
-    """Internal fetch method."""
+async def _fetch(session, record, query_params, path, headers):
+    """Make an HTTP request to the API
+
+    Parameters
+    ----------
+    session : aiohttp.ClientSession
+
+    record : QueryRecord
+
+    query_params : dict
+        Additional query parameters to pass to the API call
+
+    path : string
+        Full path of the Versium Reach API endpoint
+
+    headers : dict
+        Additional headers to pass with the HTTP request.
+
+    Returns
+    -------
+    QueryResult
+    """
     if query_params is None:
         query_params = {}
     row_dict = {key: value for key, value in record.data.items() if value is not None}
     idx = record.index
+    err_msg = ""
     result = QueryResult()
 
     params = {**query_params, **row_dict}
@@ -32,8 +53,9 @@ async def _fetch(session, record, query_params, path, headers, attempts_left):
             result.headers = dict(response.headers)
 
             if not result.success:
-                logger.error(f"Unsuccessful url fetch: {result.reason}\n\tIndex: {idx}\n\tURL: {API_BASE_URL + path}?{urllib.parse.urlencode(params)}"
-                             f"\n\tResponse Status: {result.http_status}\n\tAttempts Left: {attempts_left:d}")
+                err_msg = f"Unsuccessful url fetch: {result.reason}\n\tIndex: {idx}\n\tURL: {API_BASE_URL + path}?{urllib.parse.urlencode(params)}"\
+                          f"\n\tResponse Status: {result.http_status}"
+                result.error_msg = err_msg
                 return result
 
             result.body_raw = await response.read()
@@ -51,13 +73,50 @@ async def _fetch(session, record, query_params, path, headers, attempts_left):
     except aiohttp.ClientError as e:
         result.request_error = e
         status = getattr(response, "status", "UNKNOWN")
-        logger.error(f"Error during url fetch: {e.message}\n\tIndex: {idx}\n\tURL: {path}?{urllib.parse.urlencode(params)}"
-                     f"\n\tResponse Status: {status}\n\tAttempts Left: {attempts_left:d}")
+        err_msg = f"Error during url fetch: {e.message}\n\tIndex: {idx}\n\tURL: {path}?{urllib.parse.urlencode(params)}"\
+                  f"\n\tResponse Status: {status}"
+    result.error_msg = err_msg
     return result
 
 
-async def _create_tasks(api, records, query_params, headers=None, *, queries_per_second=20, n_connections=100, timeout=20, n_retry=3,
-                        retry_wait_time=3):
+async def _create_tasks(api, records, query_params, headers=None, *, n_retry=3, queries_per_second=20, n_connections=100, retry_wait_time=3,
+                        timeout=20):
+    """ Split the API calls into asynchronous tasks and wrap them in a rate limiter.
+
+        Parameters
+        ----------
+        api : string
+            Specifies the name of the Versium Reach API endpoint to query ('contact', 'demographic', 'b2conlineaudience', etc.)
+
+        records : list[QueryRecord]
+            List containing QueryRecord objects
+
+        query_params : dict
+            Additional query parameters to pass to each API call (e.g. {'cfg_max_recs': 1})
+
+        headers : dict
+            Additional header parameters  to pass to the API call.
+
+        n_retry : int
+            Number of times to retry the query if it fails.
+
+        queries_per_second : int
+            Maximum number of queries to perform each second to avoid 429 errors.
+
+        n_connections : int
+            Number of simultaneous calls to make when querying.
+
+        retry_wait_time : int
+            Number of seconds to wait until retrying a failed query. The wait time is increased by a multiple of `retry_wait_time` every time
+            the query fails (e.g. 0, 3, 6, 9, 12, etc.)
+
+        timeout : float
+            Number of seconds to wait for the response before timing out.
+
+        Returns
+        -------
+        list[dict]: List of responses from the API calls. This will be in the same order as given in the input.
+        """
     tasks = []
     limit = RateLimiter(max_calls=queries_per_second,
                         period=1,
@@ -78,6 +137,42 @@ async def _create_tasks(api, records, query_params, headers=None, *, queries_per
 
 def query_api(api, records, query_params, headers=None, *, n_retry=3, queries_per_second=20, n_connections=3, retry_wait_time=3,
               timeout=3):
+    """ Query the Versium Reach API and return the results.
+
+    Parameters
+    ----------
+    api : string
+        Specifies the name of the Versium Reach API endpoint to query ('contact', 'demographic', 'b2conlineaudience', etc.)
+
+    records : list[dict]
+        List containing records as key, value pairs e.g [{'first': 'John', 'last': 'Smith'}]
+
+    query_params : dict
+        Additional query parameters to pass to each API call (e.g. {'cfg_max_recs': 1})
+
+    headers : dict
+        Additional header parameters  to pass to the API call.
+
+    n_retry : int
+        Number of times to retry the query if it fails.
+
+    queries_per_second : int
+        Maximum number of queries to perform each second to avoid 429 errors.
+
+    n_connections : int
+        Number of simultaneous calls to make when querying.
+
+    retry_wait_time : int
+        Number of seconds to wait until retrying a failed query. The wait time is increased by a multiple of `retry_wait_time` every time
+        the query fails (e.g. 0, 3, 6, 9, 12, etc.)
+
+    timeout : float
+        Number of seconds to wait for the response before timing out.
+
+    Returns
+    -------
+    list[dict]: List of responses from the API calls. This will be in the same order as given in the input.
+    """
 
     if len(records) < 1:
         logger.warning("No input records were given.")

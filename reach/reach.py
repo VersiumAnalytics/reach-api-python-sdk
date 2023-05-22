@@ -40,6 +40,9 @@ class ReachClient:
         self.n_retry = n_retry
         self.retry_wait_time = retry_wait_time
 
+        if timeout <= 0:
+            raise ValueError(f"`timeout` must be greater than 0! Instead got {timeout}.")
+
     def append(self, api_name, input_records, outputs=(), config_params=None):
         """Perform an append on the input records and return the results.
 
@@ -63,11 +66,13 @@ class ReachClient:
         -------
         list[QueryResult]: A list of QueryResult objects
         """
-        query_params = dict()
+        query_params = {"cfg_max_recs": 1}
         if config_params is None:
             config_params = dict()
 
         query_params.update(config_params)
+        # Set the server-side timeout to be half a second less (or less if timeout is less than 1 second) than client
+        query_params['rcfg_max_time'] = self.timeout - min(self.timeout/2.0, 0.5)
 
         query_params["output[]"] = list(set(outputs))  # remove duplicate outputs
 

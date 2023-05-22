@@ -44,10 +44,13 @@ class QueryResult:
 
     request_error: aiohttp.ClientError
         If the client errored out during a request, this stores the error object
+
+    error_msg: string
+        Additional error message
     """
 
     def __init__(self, body=None, success=False, match_found=False, *, http_status=None, reason=None, headers=None,
-                 body_raw=None, request_error=None):
+                 body_raw=None, request_error=None, error_msg=""):
         if body is None:
             body = {}
         self.body = body
@@ -59,6 +62,7 @@ class QueryResult:
         self.body_raw = body_raw
         self.request_error = request_error
         self.reason = reason
+        self.error_msg = error_msg
 
     def __repr__(self):
         headers = str(self.headers)
