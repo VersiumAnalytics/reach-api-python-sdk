@@ -1,6 +1,8 @@
 from .append import query_api
 import logging
 
+CLIENT_SERVER_TIMEOUT_PADDING = 0.2
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,8 +73,8 @@ class ReachClient:
             config_params = dict()
 
         query_params.update(config_params)
-        # Set the server-side timeout to be half a second less (or less if timeout is less than 1 second) than client
-        query_params['rcfg_max_time'] = self.timeout - min(self.timeout/2.0, 0.5)
+        # Pad the server-side timeout to be slightly less than client to get a response back.
+        query_params['rcfg_max_time'] = self.timeout - min(self.timeout/2.0, CLIENT_SERVER_TIMEOUT_PADDING)
 
         query_params["output[]"] = list(set(outputs))  # remove duplicate outputs
 
