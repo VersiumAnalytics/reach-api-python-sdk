@@ -29,7 +29,7 @@ from reach import ReachClient
 ```
 2) Pass your [API Key](https://app.versium.com/account/manage-api-keys) to the ReachClient constructor.
 ```python
-client = ReachClient('path-key-012345678')
+client = ReachClient('api-key-012345678')
 ```
 3) Run the `append` method of your `ReachClient` object with the API name, input records, desired outputs (if applicable),
 and any extra config parameters you wish to pass.
@@ -80,6 +80,9 @@ Results are returned as a list of QueryResult objects, which contain the followi
 - **request_error**:
         If the client errored out during a request, this stores the error object
 
+
+- **error_msg**:
+        Stores additional info about query errors.
 
 # Things to keep in mind
 - The default rate limit for Reach APIs is 20 queries per second

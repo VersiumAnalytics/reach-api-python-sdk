@@ -49,7 +49,7 @@ def setup_package():
 
     setup(
             name='versium-reach-sdk',
-            version='1.0.0',
+            version='1.1.0',
             description='Python SDK for querying Versium Reach APIs',
             long_description=long_description,
             url='https://github.com/VersiumAnalytics/reach-api-python-sdk',

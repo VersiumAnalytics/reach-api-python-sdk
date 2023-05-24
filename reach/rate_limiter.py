@@ -1,5 +1,8 @@
 import asyncio
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 
 class RateLimiter(object):
@@ -34,6 +37,17 @@ class RateLimiter(object):
         self.sem = asyncio.Semaphore(n_connections)
 
     def __call__(self, func):
+        """
+
+        Parameters
+        ----------
+        func : Callable
+            function that returns a QueryResult object
+
+        Returns
+        -------
+        Callable: Input function wrapped with a rate limiting functionality
+        """
 
         async def wrapper(*args, **kwargs):
             # Semaphore will block more than {self.max_connections} from happening at once.
@@ -44,16 +58,32 @@ class RateLimiter(object):
                         await asyncio.sleep(self.__period_remaining())
 
                     self.num_calls += 1
-                    result = await func(*args, attempts_left=self.n_retry - i, **kwargs)
-                    if not result.success and self.n_retry - i > 0:
-                        await asyncio.sleep(self.retry_wait_time * i)
-
-                    else:
+                    result = await func(*args, **kwargs)
+                    if result.success:
                         return result
+
+                    if (result.http_status in (429, 500)) and (self.n_retry - i > 0):
+                        logger.error(result.error_msg + f"\n\tAttempts Left: {self.n_retry - i: d}")
+                        await asyncio.sleep(self.retry_wait_time * i)
+                        continue
+                    elif self.n_retry - i <= 0:
+                        logger.error(result.error_msg + f"\n\tNo attempts left.")
+                    else:
+                        logger.error(result.error_msg + f"\n\tNot retrying for http status: {result.http_status}")
+
+                    return result
 
         return wrapper
 
     def __period_remaining(self):
+        """ Gets the amount of time remaining in the period. If there is no time remaining, resets the call counter and updates the reset
+        timer.
+
+        Returns
+        -------
+        float: Amount of time remaining in this period
+
+        """
         elapsed = self.clock() - self.last_reset
         period_remaining = self.period - elapsed
         if period_remaining <= 0:

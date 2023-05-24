@@ -1,3 +1,4 @@
+import itertools
 import logging
 import sys
 import time
@@ -6,7 +7,7 @@ from functools import partial
 
 from aiohttp import web
 
-from .responses import MOCK_RESPONSES, GENERIC_RESPONSE
+from .responses import MOCK_RESPONSES
 
 
 class RateLimitExceededError(RuntimeError):
@@ -126,21 +127,37 @@ class RateChecker:
 
 class RequestHandler:
 
-    def __init__(self, rate_checker, response_time=0.0):
+    def __init__(self, rate_checker, response_time=0.0, http_status=200, store_requests=True):
         self.rate_checker = rate_checker
         self.response_time = response_time
+        self.http_status = http_status
+        self.store_requests = store_requests
+        self.requests = []
 
-    async def test_ratelimit(self, request):
+    @property
+    def http_status(self):
+        return self._http_status
+
+    @http_status.setter
+    def http_status(self, value):
+        # Make http_status into an iterable
+        try:
+            iter(value)
+        except TypeError:
+            value = [value]
+        self._http_status = itertools.cycle(value)
+
+    async def handle_request(self, api, request):
+        if self.store_requests:
+            self.requests += [request]
+        response = MOCK_RESPONSES[api.lower()]
         self.rate_checker.add_connection()
         try:
             self.rate_checker()
             await sleep(self.response_time)
-            return web.json_response(GENERIC_RESPONSE)
+            return web.json_response(response, status=next(self.http_status))
         finally:
             self.rate_checker.remove_connection()
-
-    async def handle_request(self, api, request):
-        return MOCK_RESPONSES[api.tolower()]
 
     async def handle_request_delayed(self, api, request):
         await sleep(self.response_time)
@@ -156,8 +173,7 @@ def make_app(rh: RequestHandler):
 
     app = web.Application(logger=logger)
     app.router.add_routes(
-        [web.post('/v2/test_rate_limit', rh.test_ratelimit),
-         web.post('/v2/contact', partial(rh.handle_request, 'contact')),
+        [web.post('/v2/contact', partial(rh.handle_request, 'contact')),
          web.post('/v2/demographic', partial(rh.handle_request, 'demographic')),
          web.post('/v2/b2cOnlineAudience', partial(rh.handle_request, 'b2cOnlineAudience')),
          web.post('/v2/b2bOnlineAudience', partial(rh.handle_request, 'b2bOnlineAudience')),
